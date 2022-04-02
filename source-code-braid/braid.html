@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+
+<html lang="en-US">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>braid</title>
+  <script src="../../jsgame0.js"></script>
+  <style type="text/css" media="screen">
+body {
+  background-color: white;
+  color: black;
+}
+.hidden {
+  display: none;
+}
+#original {
+  margin-left: 1em;
+}
+  </style>
+</head>
+
+<body>
+<section id="imageLoader" class="hidden">
+  <img class="hidden" src="images/backgroundcol.png" alt="backgroundcol" data-name="backgroundcol">
+  <img class="hidden" src="images/backgroundl1.png" alt="backgroundl1" data-name="backgroundl1">
+  <img class="hidden" src="images/backgroundl2.png" alt="backgroundl2" data-name="backgroundl2">
+  <img class="hidden" src="images/timl1.png" alt="timl1" data-name="timl1">
+  <img class="hidden" src="images/timl10.png" alt="timl10" data-name="timl10">
+  <img class="hidden" src="images/timl2.png" alt="timl2" data-name="timl2">
+  <img class="hidden" src="images/timl3.png" alt="timl3" data-name="timl3">
+  <img class="hidden" src="images/timl4.png" alt="timl4" data-name="timl4">
+  <img class="hidden" src="images/timl5.png" alt="timl5" data-name="timl5">
+  <img class="hidden" src="images/timl6.png" alt="timl6" data-name="timl6">
+  <img class="hidden" src="images/timl7.png" alt="timl7" data-name="timl7">
+  <img class="hidden" src="images/timl8.png" alt="timl8" data-name="timl8">
+  <img class="hidden" src="images/timl9.png" alt="timl9" data-name="timl9">
+  <img class="hidden" src="images/timr1.png" alt="timr1" data-name="timr1">
+  <img class="hidden" src="images/timr10.png" alt="timr10" data-name="timr10">
+  <img class="hidden" src="images/timr2.png" alt="timr2" data-name="timr2">
+  <img class="hidden" src="images/timr3.png" alt="timr3" data-name="timr3">
+  <img class="hidden" src="images/timr4.png" alt="timr4" data-name="timr4">
+  <img class="hidden" src="images/timr5.png" alt="timr5" data-name="timr5">
+  <img class="hidden" src="images/timr6.png" alt="timr6" data-name="timr6">
+  <img class="hidden" src="images/timr7.png" alt="timr7" data-name="timr7">
+  <img class="hidden" src="images/timr8.png" alt="timr8" data-name="timr8">
+  <img class="hidden" src="images/timr9.png" alt="timr9" data-name="timr9">
+</section>
+
+<main>
+<h1>braid</h1>
+
+<canvas id="screen">
+The game screen appears here if your browser supports the Canvas API.
+</canvas>
+<section id="controls">
+  <button type="button" id="reset">Reset</button>
+  <button type="button" id="pause">Pause</button>
+</section>
+
+<h2>Attribution</h2>
+
+<p><a href="https://wireframe.raspberrypi.com/issues/60">Travel back in time with Braid, pages 66-67, by Mark Vanstone</a>.</p>
+
+<p>Licensed under <a href="https://creativecommons.org/licenses/by-nc-sa/3.0/legalcode">Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported</a>.</p>
+
+<p><a href="https://www.raspberrypi.com/news/travel-back-in-time-with-braid-wireframe-60/">Blog post of Source Code</a>.</p>
+
+<h2>Original Python code</h2>
+
+<pre id="original"><code>
+# Braid
+import pgzrun
+from pygame import image
+
+tim = Actor(&#x27;timr1&#x27;,(220,400))
+tim.dir = &quot;r&quot;
+tim.frame = 1
+tim.ystore = tim.xstore = tim.jumping = 0
+collisionMap = image.load(&#x27;images/backgroundcol.png&#x27;)
+levelx = backx = count = 0
+gameData = []
+
+def draw():
+    screen.blit(&quot;backgroundl1&quot;, (backx, 0))
+    screen.blit(&quot;backgroundl2&quot;, (levelx, -50))
+    tim.draw()
+    screen.draw.text(&quot;Game Time: &quot;+str(int(count/60)), topleft = (20, 5),color=(255,255,255) , fontsize=28)
+
+def update():
+    global levelx,backx,count
+    if keyboard.backspace:
+        playGameData()
+        tim.image = &quot;tim&quot;+tim.dir+str(tim.frame)
+    else:
+        rgbtop = collisionMap.get_at((int(tim.x - levelx),int(tim.y+30)))
+        rgbbottom = collisionMap.get_at((int(tim.x - levelx),int(tim.y+50)))
+        tim.ystore = tim.y
+        tim.xstore = tim.x
+        if keyboard.left:
+            if levelx &lt; 0 and checkMove(-2):
+                levelx += 2
+                backx += 1
+                tim.x -= 2
+                tim.y -= 1
+                tim.dir = &quot;l&quot;
+                if count%7 == 0:
+                    tim.frame += 1
+                    if tim.frame &gt; 5: tim.frame = 2
+        if keyboard.right:
+            if levelx &gt; -480 and checkMove(2):
+                levelx -= 2
+                backx -= 1
+                tim.x += 2
+                tim.y -= 1
+                tim.dir = &quot;r&quot;
+                if count%7 == 0:
+                    tim.frame += 1
+                    if tim.frame &gt; 5: tim.frame = 2
+        if keyboard.up:
+            if rgbtop == (0,0,255) or rgbbottom == (0,0,255):
+                tim.y -= 5
+                if tim.frame &lt; 9 : tim.frame = 9
+                if count%7 == 0:
+                    tim.frame += 1
+                    if tim.frame &gt; 10: tim.frame = 9
+        if keyboard.down:
+            if rgbtop == (0,0,255) or rgbbottom == (0,0,255):
+                if tim.frame &lt; 9 : tim.frame = 9
+                if count%7 == 0:
+                    tim.frame += 1
+                    if tim.frame &gt; 10: tim.frame = 9
+                if rgbbottom != (0,0,0): tim.y += 1
+        if tim.jumping == 0: doGravity()
+        else:
+            if rgbtop == (255,255,255): tim.y -= tim.jumping/3
+            tim.frame = 7
+            tim.jumping -= 1
+        if tim.y &gt; tim.ystore+2: tim.frame = 8
+        if tim.x == tim.xstore and tim.y == tim.ystore: tim.frame = 1
+        tim.image = &quot;tim&quot;+tim.dir+str(tim.frame)
+        count += 1
+        storeGameData()
+
+def storeGameData():
+    newData = [tim.x,tim.y,tim.dir,tim.frame,levelx,backx]
+    gameData.append(newData)
+
+def playGameData():
+    global count,levelx,backx,gameData
+    if count &gt; 2:
+        tim.x = gameData[-1][0]
+        tim.y = gameData[-1][1]
+        tim.dir = gameData[-1][2]
+        tim.frame = gameData[-1][3]
+        levelx = gameData[-1][4]
+        backx = gameData[-1][5]
+        for i in range(2): del gameData[-1]
+        count = len(gameData)
+
+def on_key_down(key):
+    if key.name == &quot;SPACE&quot;:
+        rgb = collisionMap.get_at((int(tim.x - levelx),int(tim.y+100)))
+        if rgb == (0,0,0):
+            tim.frame = 6
+            tim.jumping = 12
+
+def doGravity():
+    rgb = collisionMap.get_at((int(tim.x - levelx),int(tim.y+25+50)))
+    if rgb[0] &gt; 100 or rgb == (0,0,255): tim.y += 3
+
+def checkMove(xinc):
+    rgb = collisionMap.get_at((int(tim.x - levelx + xinc),int(tim.y + 50)))
+    if rgb == (255,255,255) or rgb == (0,0,255): return True
+    return False
+
+pgzrun.go()
+</code></pre>
+</main>
+
+<script>
+// Braid
+
+WIDTH = 1280;
+HEIGHT = 720;
+
+var tim, collisionMap, levelx, backx, count, gameData;
+
+function reset() {
+  tim = new Actor('timr1');
+  tim.pos = [220, 400];
+  tim.dir = "r";
+  tim.frame = 1;
+  tim.ystore = 0;
+  tim.xstore = 0;
+  tim.jumping = 0;
+
+  screen.blit('backgroundcol', [0, 0]);
+  collisionMap = screen.getSurface();
+
+  levelx = 0;
+  backx = 0;
+  count = 0;
+  gameData = [];
+}
+
+function draw() {
+  screen.blit("backgroundl1", [backx, 0]);
+  screen.blit("backgroundl2", [levelx, -50]);
+  tim.draw();
+  screen.draw.text("Game Time: " + Math.trunc(count / 60), {
+    topleft: [20, 5],
+    color: [255, 255, 255],
+    fontsize: 28
+  });
+}
+
+function update() {
+  if (keyboard[keys.BACKSPACE]) {
+    playGameData();
+    tim.name = "tim" + tim.dir + tim.frame;
+  }
+  else {
+    let rgbtop = collisionMap.getAt(Math.trunc(tim.posx - levelx), Math.trunc(tim.posy + 30)),
+        rgbbottom = collisionMap.getAt(Math.trunc(tim.posx - levelx), Math.trunc(tim.posy + 50));
+    tim.ystore = tim.posy;
+    tim.xstore = tim.posx;
+    if (keyboard[keys.LEFT]) {
+      if ((levelx < 0) && checkMove(-2)) {
+        levelx += 2;
+        backx += 1;
+        tim.posx -= 2;
+        tim.posy -= 1;
+        tim.dir = "l";
+        if ((count % 7) === 0) {
+          tim.frame += 1;
+          if (tim.frame > 5) {
+            tim.frame = 2;
+          }
+        }
+      }
+    }
+    if (keyboard[keys.RIGHT]) {
+      if ((levelx > -480) && checkMove(2)) {
+        levelx -= 2;
+        backx -= 1;
+        tim.posx += 2;
+        tim.posy -= 1;
+        tim.dir = "r";
+        if ((count % 7) === 0) {
+          tim.frame += 1;
+          if (tim.frame > 5) {
+            tim.frame = 2;
+          }
+        }
+      }
+    }
+    if (keyboard[keys.UP]) {
+      if (Surface.isColorEqual(rgbtop, [0, 0, 255]) || Surface.isColorEqual(rgbbottom, [0, 0, 255])) {
+        tim.posy -= 5;
+        if (tim.frame < 9) {
+          tim.frame = 9;
+        }
+        if ((count % 7) === 0) {
+          tim.frame += 1;
+          if (tim.frame > 10) {
+            tim.frame = 9;
+          }
+        }
+      }
+    }
+    if (keyboard[keys.DOWN]) {
+      if (Surface.isColorEqual(rgbtop, [0, 0, 255]) || Surface.isColorEqual(rgbbottom, [0, 0, 255])) {
+        if (tim.frame < 9) {
+          tim.frame = 9;
+        }
+        if ((count % 7) === 0) {
+          tim.frame += 1;
+          if (tim.frame > 10) {
+            tim.frame = 9;
+          }
+        }
+      }
+      if (!Surface.isColorEqual(rgbbottom, [0, 0, 0])) {
+        tim.posy += 1;
+      }
+    }
+    if (tim.jumping === 0) {
+      doGravity();
+    }
+    else {
+      if (Surface.isColorEqual(rgbtop, [255, 255, 255])) {
+        tim.posy -= tim.jumping / 3;
+      }
+      tim.frame = 7;
+      tim.jumping -= 1;
+    }
+    if (tim.posy > (tim.ystore + 2)) {
+      tim.frame = 8;
+    }
+    if ((tim.posx === tim.xstore) && (tim.posy === tim.ystore)) {
+      tim.frame = 1;
+    }
+    tim.name = "tim" + tim.dir + tim.frame;
+    count += 1;
+    storeGameData();
+  }
+}
+
+function storeGameData() {
+  let newData = [tim.posx, tim.posy, tim.dir, tim.frame, levelx, backx];
+  gameData.push(newData);
+}
+
+function playGameData() {
+  if (count > 2) {
+    tim.posx = gameData[gameData.length-1][0];
+    tim.posy = gameData[gameData.length-1][1];
+    tim.dir = gameData[gameData.length-1][2];
+    tim.frame = gameData[gameData.length-1][3];
+    levelx = gameData[gameData.length-1][4];
+    backx = gameData[gameData.length-1][5];
+    for (let i = 0; i < 2; i++) {
+      gameData.pop();
+    }
+    count = gameData.length;
+  }
+}
+
+function on_key_down(key) {
+  if (key === keys.SPACE) {
+    let rgb = collisionMap.getAt(Math.trunc(tim.posx - levelx), Math.trunc(tim.posy + 100));
+    if (Surface.isColorEqual(rgb, [0, 0, 0])) {
+      tim.frame = 6;
+      tim.jumping = 12;
+    }
+  }
+}
+
+function doGravity() {
+  let rgb = collisionMap.getAt(Math.trunc(tim.posx - levelx), Math.trunc(tim.posy + 25 + 50));
+  if ((rgb[0] > 100) || Surface.isColorEqual(rgb, [0, 0, 255])) {
+    tim.posy += 3;
+  }
+}
+
+function checkMove(xinc) {
+  let rgb = collisionMap.getAt(Math.trunc(tim.posx - levelx + xinc), Math.trunc(tim.posy + 50));
+  if (Surface.isColorEqual(rgb, [255, 255, 255]) || Surface.isColorEqual(rgb, [0, 0, 255])) {
+    return true;
+  }
+  return false;
+}
+
+window.addEventListener('load', (event) => {
+  images.LOAD('#imageLoader img');
+  // Non-standard order for Surface
+  screen.set_mode('#screen', '#reset', '#pause');
+  reset();
+  screen.draw.playButton();
+});
+</script>
+</body>
+
+</html>
