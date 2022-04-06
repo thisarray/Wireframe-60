@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+
+<html lang="en-US">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>A fantasy city generation tool</title>
+  <script src="../jsgame0.js"></script>
+  <style type="text/css" media="screen">
+body {
+  background-color: white;
+  color: black;
+}
+.hidden {
+  display: none;
+}
+#original {
+  margin-left: 1em;
+}
+  </style>
+</head>
+
+<body>
+
+<main>
+<h1>A fantasy city generation tool</h1>
+
+<canvas id="screen">
+The game screen appears here if your browser supports the Canvas API.
+</canvas>
+<section id="controls">
+  <button type="button" id="reset">Reset</button>
+  <button type="button" id="pause">Pause</button>
+</section>
+
+<h2>Attribution</h2>
+
+<p><a href="https://wireframe.raspberrypi.com/issues/60">Create a fantasy city using nothing more than some dice and a few handy tables, pages 44-47, by Konstantinos Dimopoulos</a>.</p>
+
+<p>Licensed under <a href="https://creativecommons.org/licenses/by-nc-sa/3.0/legalcode">Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported</a>.</p>
+
+</main>
+
+<script>
+/*
+ * String blank grid in the map.
+ */
+const BLANK = 'Grassland';
+
+/*
+ * Integer width or height of each grid in the map in pixels.
+ */
+const GRID_SIZE = 30;
+
+/*
+ * Integer number of horizontal or vertical grids in the map.
+ */
+const MAP_SIZE = 14;
+
+/*
+ * Array of city attributes: Size rank, District count, Race count modifier, Population
+ */
+const CITY_TABLE = [
+  [1, 4, 0, 10000],
+  [1, 4, 1, 15000],
+  [2, 5, 1, 30000],
+  [2, 5, 2, 60000],
+  [3, 6, -1, 100000],
+  [3, 6, 0, 200000]
+];
+
+/*
+ * Array of string races.
+ */
+const RACE_TABLE = [
+  'Trolls', 'Orcs', 'Goblins', 'Halflings', 'Humans', 'Dwarfs', 'Elves', 'Gnomes', 'Lizardfolk', 'Undead', 'Demon'
+];
+
+/*
+ * Array of integer offsets to attach the popular district.
+ */
+const POPULAR_TABLE = [
+  [[[0, 1], [-1, 0], [1, 0]],
+   [[0, -1], [0, 1], [0, 2], [-1, 0], [1, 0]],
+   [[0, -2], [0, -1], [0, 1], [0, 2], [-2, 0], [-1, 0], [1, 0], [2, 0], [3, 0]]],
+  [[[0, -1], [-1, 0], [1, 0]],
+   [[0, -2], [0, -1], [0, 1], [-1, 0], [1, 0]],
+   [[0, -3], [0, -2], [0, -1], [0, 1], [0, 2], [-2, 0], [-1, 0], [1, 0], [2, 0]]],
+  [[[0, -1], [0, 1], [1, 0]],
+   [[0, -1], [0, 1], [-2, 0], [-1, 0], [1, 0]],
+   [[0, -2], [0, -1], [0, 1], [0, 2], [0, 3], [-2, 0], [-1, 0], [1, 0], [2, 0]]],
+  [[[0, -1], [0, 1], [-1, 0]],
+   [[0, -1], [0, 1], [-1, 0], [1, 0], [2, 0]],
+   [[0, -2], [0, -1], [0, 1], [0, 2], [-3, 0], [-2, 0], [-1, 0], [1, 0], [2, 0]]],
+  [[[0, -1], [0, 1], [-1, 0], [1, 0]],
+   [[0, -2], [0, -1], [0, 1], [0, 2], [-1, 0], [1, 0]],
+   [[0, -2], [0, -1], [0, 1], [0, 2], [0, 3], [-2, 0], [-1, 0], [1, 0], [2, 0], [3, 0]]],
+  [[[0, -2], [0, -1], [0, 1], [0, 2], [-1, 0], [1, 0]],
+   [[0, -2], [0, -1], [0, 1], [0, 2], [-2, 0], [-1, 0], [1, 0], [2, 0]],
+   [[0, -4], [0, -3], [0, -2], [0, -1], [0, 1], [0, 2], [-3, 0], [-2, 0], [-1, 0], [1, 0], [2, 0]]]
+];
+
+/*
+ * Array of gate locations.
+ */
+const GATE_TABLE = [
+  'North and south',
+  'West and east',
+  'North, south, west, and east',
+  'Every face',
+  'A single gate',
+  'North, south, west, east, and two more of your choice'
+];
+
+/*
+ * Map of string color names to use to fill each grid type.
+ */
+const COLOR_TABLE = new Map([
+  [BLANK, 'white'],
+  ['Core', 'orange'],
+  ['Field', 'green'],
+  ['Lake', 'lightblue'],
+  ['Mountain', 'grey'],
+  ['Popular', 'yellow'],
+  ['River', 'cyan'],
+  ['Special District 1', 'purple'],
+  ['Special District 2', 'brown'],
+  ['Upper', 'blue']
+]);
+
+/*
+ * Return a random integer N such that 0 <= N < max.
+ */
+function rollDie(max = 6) {
+  return Math.floor(Math.random() * Math.floor(max));
+}
+
+/*
+ * Draw a river on map vertically if horizontal is false or horizontally if horizontal is true.
+ */
+function drawRiver(map, horizontal = false, start = -1, end = -1, label = 'River') {
+  if ((start < 0) || (MAP_SIZE <= start)) {
+    start = 4 + rollDie();
+  }
+  if ((end < 0) || (MAP_SIZE <= end)) {
+    end = 4 + rollDie();
+  }
+  if (horizontal) {
+    // River (east to west)
+    for (let x = 0; x < MAP_SIZE; x++) {
+      map[x][start] = label;
+      if (start !== end) {
+        if (rollDie() < 3) {
+          if (start < end) {
+            start++;
+          }
+          else {
+            start--;
+          }
+          map[x][start] = label;
+        }
+      }
+    }
+    while (start !== end) {
+      // If the river does not end at end, then bend the river to end
+      if (start < end) {
+        start++;
+      }
+      else {
+        start--;
+      }
+      map[MAP_SIZE-1][start] = label;
+    }
+    map[MAP_SIZE-1][start] = label;
+  }
+  else {
+    // River (north to south)
+    for (let y = 0; y < MAP_SIZE; y++) {
+      map[start][y] = label;
+      if (start !== end) {
+        if (rollDie() < 3) {
+          if (start < end) {
+            start++;
+          }
+          else {
+            start--;
+          }
+          map[start][y] = label;
+        }
+      }
+    }
+    while (start !== end) {
+      // If the river does not end at end, then bend the river to end
+      if (start < end) {
+        start++;
+      }
+      else {
+        start--;
+      }
+      map[start][MAP_SIZE-1] = label;
+    }
+    map[start][MAP_SIZE-1] = label;
+  }
+}
+
+/*
+ * Attach zone to the city in the direction of offsets.
+ */
+function attachZone(map, citySet, offsets, zone) {
+  let i, j;
+  for (let x = 0; x < MAP_SIZE; x++) {
+    for (let y = 0; y < MAP_SIZE; y++) {
+      if (citySet.has(map[x][y])) {
+        for (let [dx, dy] of offsets) {
+          i = x + dx;
+          j = y + dy;
+          if ((0 <= i) && (i < MAP_SIZE) && (0 <= j) && (j < MAP_SIZE) && (!citySet.has(map[i][j]))) {
+            // If (i, j) is in the map and not already part of the city,
+            // then set it to the new zone
+            map[i][j] = zone;
+          }
+        }
+      }
+    }
+  }
+}
+
+HEIGHT = (MAP_SIZE + 1) * GRID_SIZE;
+
+let city, map;
+
+function reset () {
+  city = {};
+  map = [];
+  for (let i = 0; i < MAP_SIZE; i++) {
+    map.push((new Array(MAP_SIZE)).fill(BLANK));
+  }
+
+  // 1. THE SETUP
+  city.size = rollDie();
+  city.rank = CITY_TABLE[city.size][0];
+  if (city.rank < 3) {
+    city.raceCount = rollDie() + 1 + CITY_TABLE[city.size][2];
+  }
+  else {
+    city.raceCount = rollDie() + 1 + rollDie() + 1 + CITY_TABLE[city.size][2];
+  }
+  // The resulting number of races may be less than raceCount
+  // The rules do not say what to do when the same value keeps repeating
+  city.races = [];
+  let raceSet = new Set(),
+      race;
+  for (let i = 0; i < city.raceCount; i++) {
+    race = RACE_TABLE[rollDie()+rollDie()];
+    if (raceSet.has(race)) {
+      race = 'half-' + race;
+    }
+    if (!raceSet.has(race)) {
+      raceSet.add(race);
+      city.races.push(race);
+    }
+  }
+
+  // 2. ENVIRONMENT
+  city.environment = rollDie();
+  if (city.environment === 0) {
+    // Mountains
+    let label = 'Mountain';
+    switch (rollDie()) {
+      case 0:
+        // A single mountain range across the northern side of the grid. 1 tile wide.
+        for (let i = 0; i < MAP_SIZE; i++) {
+          map[i][0] = label;
+        }
+        break;
+      case 1:
+        // A single mountain range across the eastern side of the grid. 1 tile wide.
+        map[MAP_SIZE-1].fill(label);
+        break;
+      case 2:
+        // A single mountain range across the southern side of the grid. 1 tile wide.
+        for (let i = 0; i < MAP_SIZE; i++) {
+          map[i][MAP_SIZE-1] = label;
+        }
+        break;
+      case 3:
+        // A single mountain range across the western side of the grid. 1 tile wide.
+        map[0].fill(label);
+        break;
+      case 4:
+        // One range to the east, one to the west. Each 1 tile wide.
+        map[0].fill(label);
+        map[MAP_SIZE-1].fill(label);
+        break;
+      default:
+        // The city is enclosed in mountains. Surround it across all 4 sides of the grid.
+        map[0].fill(label);
+        map[MAP_SIZE-1].fill(label);
+        for (let i = 0; i < MAP_SIZE; i++) {
+          map[i][0] = label;
+          map[i][MAP_SIZE-1] = label;
+        }
+        break;
+    }
+  }
+  else if (city.environment === 2) {
+    // River (north to south)
+    drawRiver(map, false);
+  }
+  else if (city.environment === 3) {
+    // River (east to west)
+    drawRiver(map, true);
+  }
+  else if (city.environment === 4) {
+    // Mountains (east and west) and River (north to south)
+    map[0].fill('Mountain');
+    map[MAP_SIZE-1].fill('Mountain');
+    drawRiver(map, false);
+  }
+  else if (city.environment === 5) {
+    // Lake
+    let top = 4 + rollDie(),
+        label = 'Lake';
+    switch (rollDie()) {
+      case 0:
+        map[0][0] = label;
+        map[1][0] = label;
+        map[2][0] = label;
+        map[0][1] = label;
+        map[0][2] = label;
+        map[1][1] = label;
+        break;
+      case 1:
+        map[0][MAP_SIZE-1] = label;
+        map[1][MAP_SIZE-1] = label;
+        map[2][MAP_SIZE-1] = label;
+        map[0][MAP_SIZE-2] = label;
+        map[0][MAP_SIZE-3] = label;
+        map[1][MAP_SIZE-2] = label;
+        break;
+      case 2:
+        map[0][top] = label;
+        map[0][top+1] = label;
+        map[0][top+2] = label;
+        map[0][top+3] = label;
+        map[0][top+4] = label;
+        map[1][top+1] = label;
+        map[1][top+2] = label;
+        map[1][top+3] = label;
+        map[2][top+2] = label;
+        break;
+      case 3:
+        map[MAP_SIZE-3][0] = label;
+        map[MAP_SIZE-2][0] = label;
+        map[MAP_SIZE-1][0] = label;
+        map[MAP_SIZE-2][1] = label;
+        map[MAP_SIZE-1][1] = label;
+        map[MAP_SIZE-1][2] = label;
+        break;
+      case 4:
+        map[MAP_SIZE-3][MAP_SIZE-1] = label;
+        map[MAP_SIZE-2][MAP_SIZE-1] = label;
+        map[MAP_SIZE-1][MAP_SIZE-1] = label;
+        map[MAP_SIZE-2][MAP_SIZE-2] = label;
+        map[MAP_SIZE-1][MAP_SIZE-3] = label;
+        map[MAP_SIZE-1][MAP_SIZE-2] = label;
+        break;
+      default:
+        map[MAP_SIZE-1][top] = label;
+        map[MAP_SIZE-1][top+1] = label;
+        map[MAP_SIZE-1][top+2] = label;
+        map[MAP_SIZE-1][top+3] = label;
+        map[MAP_SIZE-1][top+4] = label;
+        map[MAP_SIZE-2][top+1] = label;
+        map[MAP_SIZE-2][top+2] = label;
+        map[MAP_SIZE-2][top+3] = label;
+        map[MAP_SIZE-3][top+2] = label;
+        break;
+    }
+  }
+
+  // 3. THE CORE
+  if (rollDie() < 3) {
+    city.core = 'Castle';
+  }
+  else {
+    city.core = 'Monastery';
+  }
+  let x = 7,
+      y = 7,
+      label = 'Core';
+  // Randomly shift the Core slightly from the center of the map
+  if (rollDie() < 2) {
+    if (rollDie() < 3) {
+      x--;
+    }
+    else {
+      y--;
+    }
+  }
+  else if (rollDie() < 4) {
+    if (rollDie() < 3) {
+      x++;
+    }
+    else {
+      y++;
+    }
+  }
+  switch (rollDie()) {
+    case 0:
+      map[x][y] = label;
+      map[x+1][y] = label;
+      map[x][y+1] = label;
+      map[x][y+2] = label;
+      map[x+1][y+2] = label;
+      break;
+    case 1:
+      map[x][y] = label;
+      map[x+1][y] = label;
+      map[x][y+1] = label;
+      map[x+1][y+1] = label;
+      break;
+    case 2:
+      map[x+1][y] = label;
+      map[x][y+1] = label;
+      map[x+1][y+1] = label;
+      map[x+2][y+1] = label;
+      map[x+1][y+2] = label;
+      break;
+    case 3:
+      map[x][y] = label;
+      map[x+1][y] = label;
+      map[x+1][y+1] = label;
+      map[x][y+2] = label;
+      map[x+1][y+2] = label;
+      break;
+    case 4:
+      map[x+2][y] = label;
+      map[x][y+1] = label;
+      map[x+1][y+1] = label;
+      map[x+2][y+1] = label;
+      map[x][y+2] = label;
+      break;
+    default:
+      map[x][y] = label;
+      map[x+2][y] = label;
+      map[x][y+1] = label;
+      map[x+1][y+1] = label;
+      map[x+2][y+1] = label;
+      map[x+1][y+2] = label;
+      map[x+2][y+2] = label;
+      break;
+  }
+
+  // 4. UPPER CLASS DISTRICT
+  let citySet = new Set([label]);
+  label = 'Upper';
+  switch (rollDie()) {
+    case 0:
+      if (city.rank === 3) {
+        attachZone(map, citySet, [[0, -1], [0, -2]], label);
+      }
+      else {
+        attachZone(map, citySet, [[0, -1]], label);
+      }
+      break;
+    case 1:
+      if (city.rank === 3) {
+        attachZone(map, citySet, [[0, 1], [0, 2]], label);
+      }
+      else {
+        attachZone(map, citySet, [[0, 1]], label);
+      }
+      break;
+    case 2:
+      if (city.rank === 3) {
+        attachZone(map, citySet, [[1, 0], [2, 0]], label);
+      }
+      else {
+        attachZone(map, citySet, [[1, 0]], label);
+      }
+      break;
+    case 3:
+      if (city.rank === 3) {
+        attachZone(map, citySet, [[-1, 0], [-2, 0]], label);
+      }
+      else {
+        attachZone(map, citySet, [[-1, 0]], label);
+      }
+      break;
+    case 4:
+      if (city.rank === 3) {
+        attachZone(map, citySet, [[-1, 0], [-2, 0], [1, 0], [2, 0]], label);
+      }
+      else {
+        attachZone(map, citySet, [[-1, 0], [1, 0]], label);
+      }
+      break;
+    default:
+      attachZone(map, citySet, [[0, -1], [0, 1], [1, 0], [-1, 0]], label);
+      break;
+  }
+
+  // 5. THE MASSES
+  citySet.add(label);
+  attachZone(map, citySet, POPULAR_TABLE[rollDie()][city.rank-1], 'Popular');
+
+  // 6. FIELDS
+  citySet.add('Popular');
+  label = 'Field';
+  let roll_count = Math.max(1, city.rank - 1);
+  for (let i = 0; i < roll_count; i++) {
+    switch (rollDie()) {
+      case 0:
+        attachZone(map, citySet, [[-1, -1]], label);
+        break;
+      case 1:
+        attachZone(map, citySet, [[1, -1]], label);
+        break;
+      case 2:
+        attachZone(map, citySet, [[1, 1]], label);
+        break;
+      case 3:
+        attachZone(map, citySet, [[-1, 1]], label);
+        break;
+      case 4:
+        if (rollDie() < 3) {
+          // Region 1 and 2
+          attachZone(map, citySet, [[-1, -1]], label);
+          attachZone(map, citySet, [[1, -1]], label);
+        }
+        else {
+          // Region 3 and 4
+          attachZone(map, citySet, [[1, 1]], label);
+          attachZone(map, citySet, [[-1, 1]], label);
+        }
+        break;
+      default:
+        // A field completely encircles the city
+        attachZone(map, citySet, [[0, -1], [0, 1], [1, 0], [-1, 0]], label);
+        break;
+    }
+  }
+
+  // 7. SPECIAL DISTRICT 1
+  citySet.add(label);
+  label = 'Special District 1';
+  if (city.rank > 1) {
+    // Special districts are only added to cities of size rank 2 and 3.
+    if (rollDie() < 3) {
+      // Creation method 1: Add a zone with a depth of 1 tile.
+      switch (rollDie(4)) {
+        case 0:
+          attachZone(map, citySet, [[-1, -1]], label);
+          break;
+        case 1:
+          attachZone(map, citySet, [[1, -1]], label);
+          break;
+        case 2:
+          attachZone(map, citySet, [[1, 1]], label);
+          break;
+        default:
+          attachZone(map, citySet, [[-1, 1]], label);
+          break;
+      }
+    }
+    else {
+      // Creation method 2: Add a 2x2 zone that replaces all sorts of pre-existing tiles except those of the Core.
+      let startX = rollDie() + rollDie() + 2,
+          startY = rollDie() + rollDie() + 2;
+      for (let x = startX; x < (startX + 2); x++) {
+        for (let y = startY; y < (startY + 2); y++) {
+          if (map[x][y] !== 'Core') {
+            map[x][y] = label;
+          }
+        }
+      }
+    }
+  }
+
+  // 8. SPECIAL DISTRICT 2
+  citySet.add(label);
+  label = 'Special District 2';
+  if (city.rank > 2) {
+    // A last district that is only applicable to size rank 3 cities.
+    x = rollDie() + rollDie();
+    y = rollDie() + rollDie();
+    switch (rollDie()) {
+      case 0:
+        map[x][y] = label;
+        map[x+1][y] = label;
+        map[x+2][y] = label;
+        map[x][y+1] = label;
+        map[x+2][y+1] = label;
+        break;
+      case 1:
+        map[x][y] = label;
+        map[x+2][y] = label;
+        map[x][y+1] = label;
+        map[x+1][y+1] = label;
+        map[x+2][y+1] = label;
+        break;
+      case 2:
+        map[x][y] = label;
+        map[x+1][y] = label;
+        map[x+2][y] = label;
+        map[x+1][y+1] = label;
+        map[x][y+2] = label;
+        map[x+1][y+2] = label;
+        map[x+2][y+2] = label;
+        break;
+      case 3:
+        map[x][y] = label;
+        map[x+1][y] = label;
+        map[x+2][y] = label;
+        map[x][y+1] = label;
+        map[x+1][y+1] = label;
+        break;
+      case 4:
+        map[x][y] = label;
+        map[x+1][y] = label;
+        map[x][y+1] = label;
+        map[x+1][y+1] = label;
+        break;
+      default:
+        map[x][y] = label;
+        map[x+1][y] = label;
+        map[x+1][y+1] = label;
+        map[x+2][y+1] = label;
+        map[x][y+2] = label;
+        map[x+1][y+2] = label;
+        break;
+    }
+  }
+
+  // 9. WALLS AND GATES
+  city.gate = GATE_TABLE[rollDie()];
+
+  console.dir(city);
+}
+
+function draw() {
+  screen.fill('white');
+
+  // Draw the map
+  for (let x = 0; x < MAP_SIZE; x++) {
+    for (let y = 0; y < MAP_SIZE; y++) {
+      if (COLOR_TABLE.has(map[x][y])) {
+        screen.draw.filled_rect(new Rect(x * GRID_SIZE, y * GRID_SIZE, GRID_SIZE, GRID_SIZE), COLOR_TABLE.get(map[x][y]));
+      }
+      screen.draw.rect(new Rect(x * GRID_SIZE, y * GRID_SIZE, GRID_SIZE, GRID_SIZE), 'black', 1);
+    }
+  }
+
+  // Draw the map legend
+  let keys = Array.from(COLOR_TABLE.keys()).sort(),
+      boxStart = (MAP_SIZE + 1) * GRID_SIZE,
+      textStart = (MAP_SIZE + 3) * GRID_SIZE,
+      y = GRID_SIZE * 2;
+  screen.draw.text('Legend:', {
+    topleft: [boxStart, 0],
+    color: 'black',
+    fontsize: GRID_SIZE
+  });
+  for (let key of keys) {
+    screen.draw.filled_rect(new Rect(boxStart, y, GRID_SIZE, GRID_SIZE), COLOR_TABLE.get(key));
+    screen.draw.rect(new Rect(boxStart, y, GRID_SIZE, GRID_SIZE), 'black', 1);
+    screen.draw.text(key, {
+      topleft: [textStart, y],
+      color: 'black',
+      fontsize: GRID_SIZE
+    });
+    y += GRID_SIZE;
+  }
+}
+
+window.addEventListener('load', (event) => {
+  reset();
+  screen.set_mode('#screen', '#reset', '#pause');
+});
+</script>
+</body>
+
+</html>
