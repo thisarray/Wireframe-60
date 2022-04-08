@@ -43,41 +43,86 @@ The game screen appears here if your browser supports the Canvas API.
 
 <script>
 /*
- * String blank grid in the map.
+ * String blank tile in the map.
  */
 const BLANK = 'Grassland';
 
 /*
- * Integer width or height of each grid in the map in pixels.
+ * String Core tile in the map.
  */
-const GRID_SIZE = 30;
+const CORE_LABEL = 'Core';
 
 /*
- * Integer number of horizontal or vertical grids in the map.
+ * String field tile in the map.
+ */
+const FIELD_LABEL = 'Field';
+
+/*
+ * String lake tile in the map.
+ */
+const LAKE_LABEL = 'Lake';
+
+/*
+ * String mountain tile in the map.
+ */
+const MOUNTAIN_LABEL = 'Mountain';
+
+/*
+ * String popular district tile in the map.
+ */
+const POPULAR_LABEL = 'Popular';
+
+/*
+ * String river tile in the map.
+ */
+const RIVER_LABEL = 'River';
+
+/*
+ * String special district 1 tile in the map.
+ */
+const SD1_LABEL = 'Special District 1';
+
+/*
+ * String special district 2 tile in the map.
+ */
+const SD2_LABEL = 'Special District 2';
+
+/*
+ * String upper class district tile in the map.
+ */
+const UPPER_LABEL = 'Upper';
+
+/*
+ * Integer width or height of each tile in the map in pixels.
+ */
+const TILE_SIZE = 30;
+
+/*
+ * Integer number of horizontal or vertical tiles in the map.
  */
 const MAP_SIZE = 14;
 
 /*
- * Array of city attributes: Size rank, District count, Race count modifier, Population
+ * Array of city attributes: Size rank, Race count modifier, Population, Detail die count
  */
 const CITY_TABLE = [
-  [1, 4, 0, 10000],
-  [1, 4, 1, 15000],
-  [2, 5, 1, 30000],
-  [2, 5, 2, 60000],
-  [3, 6, -1, 100000],
-  [3, 6, 0, 200000]
+  [1, 0, 10000, 2],
+  [1, 1, 15000, 3],
+  [2, 1, 30000, 4],
+  [2, 2, 60000, 5],
+  [3, -1, 100000, 6],
+  [3, 0, 200000, 8]
 ];
 
 /*
  * Array of string races.
  */
 const RACE_TABLE = [
-  'Trolls', 'Orcs', 'Goblins', 'Halflings', 'Humans', 'Dwarfs', 'Elves', 'Gnomes', 'Lizardfolk', 'Undead', 'Demon'
+  'Trolls', 'Orcs', 'Goblins', 'Halflings', 'Humans', 'Dwarfs', 'Elves', 'Gnomes', 'Lizardfolk', 'Undead', 'Demons'
 ];
 
 /*
- * Array of integer offsets to attach the popular district.
+ * Array of integer offsets to attach the popular district tiles.
  */
 const POPULAR_TABLE = [
   [[[0, 1], [-1, 0], [1, 0]],
@@ -101,6 +146,18 @@ const POPULAR_TABLE = [
 ];
 
 /*
+ * Array of integer offsets depicting the shape of the city's palace.
+ */
+const PALACE_TABLE = [
+  [[0, 0], [0, 1], [1, 0], [2, 0], [2, 1]],
+  [[0, 0], [0, 1], [1, 1], [2, 0], [2, 1]],
+  [[0, 0], [0, 2], [1, 0], [1, 1], [1, 2], [2, 0], [2, 2]],
+  [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0]],
+  [[0, 0], [0, 1], [1, 0], [1, 1]],
+  [[0, 0], [0, 2], [1, 0], [1, 1], [1, 2], [2, 1]]
+];
+
+/*
  * Array of gate locations.
  */
 const GATE_TABLE = [
@@ -113,19 +170,19 @@ const GATE_TABLE = [
 ];
 
 /*
- * Map of string color names to use to fill each grid type.
+ * Map of string color names to use to fill each tile type.
  */
 const COLOR_TABLE = new Map([
   [BLANK, 'white'],
-  ['Core', 'orange'],
-  ['Field', 'green'],
-  ['Lake', 'lightblue'],
-  ['Mountain', 'grey'],
-  ['Popular', 'yellow'],
-  ['River', 'cyan'],
-  ['Special District 1', 'purple'],
-  ['Special District 2', 'brown'],
-  ['Upper', 'blue']
+  [CORE_LABEL, 'orange'],
+  [FIELD_LABEL, 'green'],
+  [LAKE_LABEL, 'lightblue'],
+  [MOUNTAIN_LABEL, 'grey'],
+  [POPULAR_LABEL, 'yellow'],
+  [RIVER_LABEL, 'cyan'],
+  [SD1_LABEL, 'purple'],
+  [SD2_LABEL, 'brown'],
+  [UPPER_LABEL, 'blue']
 ]);
 
 /*
@@ -136,9 +193,30 @@ function rollDie(max = 6) {
 }
 
 /*
+ * Place zone in the shape of tiles listed in the array offsets on map with upperleft corner at (startX, startY).
+ */
+function placeZone(map, startX, startY, offsets, zone) {
+  if ((startX < 0) || (MAP_SIZE <= startX) || (startY < 0) || (MAP_SIZE <= startY)) {
+    return;
+  }
+  if (!COLOR_TABLE.has(zone)) {
+    return;
+  }
+  let x, y;
+  for (let [dx, dy] of offsets) {
+    x = startX + dx;
+    y = startY + dy;
+    if ((0 <= x) && (x < MAP_SIZE) && (0 <= y) && (y < MAP_SIZE)) {
+      map[x][y] = zone;
+    }
+  }
+}
+
+/*
  * Draw a river on map vertically if horizontal is false or horizontally if horizontal is true.
  */
-function drawRiver(map, horizontal = false, start = -1, end = -1, label = 'River') {
+function drawRiver(map, horizontal = false, start = -1, end = -1) {
+  // Randomly generate start and end if they are not specified
   if ((start < 0) || (MAP_SIZE <= start)) {
     start = 4 + rollDie();
   }
@@ -148,7 +226,7 @@ function drawRiver(map, horizontal = false, start = -1, end = -1, label = 'River
   if (horizontal) {
     // River (east to west)
     for (let x = 0; x < MAP_SIZE; x++) {
-      map[x][start] = label;
+      map[x][start] = RIVER_LABEL;
       if (start !== end) {
         if (rollDie() < 3) {
           if (start < end) {
@@ -157,7 +235,7 @@ function drawRiver(map, horizontal = false, start = -1, end = -1, label = 'River
           else {
             start--;
           }
-          map[x][start] = label;
+          map[x][start] = RIVER_LABEL;
         }
       }
     }
@@ -169,14 +247,14 @@ function drawRiver(map, horizontal = false, start = -1, end = -1, label = 'River
       else {
         start--;
       }
-      map[MAP_SIZE-1][start] = label;
+      map[MAP_SIZE-1][start] = RIVER_LABEL;
     }
-    map[MAP_SIZE-1][start] = label;
+    map[MAP_SIZE-1][start] = RIVER_LABEL;
   }
   else {
     // River (north to south)
     for (let y = 0; y < MAP_SIZE; y++) {
-      map[start][y] = label;
+      map[start][y] = RIVER_LABEL;
       if (start !== end) {
         if (rollDie() < 3) {
           if (start < end) {
@@ -185,7 +263,7 @@ function drawRiver(map, horizontal = false, start = -1, end = -1, label = 'River
           else {
             start--;
           }
-          map[start][y] = label;
+          map[start][y] = RIVER_LABEL;
         }
       }
     }
@@ -197,9 +275,9 @@ function drawRiver(map, horizontal = false, start = -1, end = -1, label = 'River
       else {
         start--;
       }
-      map[start][MAP_SIZE-1] = label;
+      map[start][MAP_SIZE-1] = RIVER_LABEL;
     }
-    map[start][MAP_SIZE-1] = label;
+    map[start][MAP_SIZE-1] = RIVER_LABEL;
   }
 }
 
@@ -207,6 +285,9 @@ function drawRiver(map, horizontal = false, start = -1, end = -1, label = 'River
  * Attach zone to the city in the direction of offsets.
  */
 function attachZone(map, citySet, offsets, zone) {
+  if (!COLOR_TABLE.has(zone)) {
+    return;
+  }
   let i, j;
   for (let x = 0; x < MAP_SIZE; x++) {
     for (let y = 0; y < MAP_SIZE; y++) {
@@ -225,7 +306,40 @@ function attachZone(map, citySet, offsets, zone) {
   }
 }
 
-HEIGHT = (MAP_SIZE + 1) * GRID_SIZE;
+/*
+ * Randomly place zone in the shape of tiles listed in the array offsets on map.
+ */
+function randomlyPlace(map, banned, offsets, zone) {
+  if (!COLOR_TABLE.has(zone)) {
+    return;
+  }
+
+  // Randomly look for (startX, startY) that can place offsets without hitting banned
+  let startX, startY, x, y;
+  while (true) {
+    startX = rollDie() + 1 + rollDie() + 1;
+    startY = rollDie() + 1 + rollDie() + 1;
+    for (let [dx, dy] of offsets) {
+      x = startX + dx;
+      y = startY + dy;
+      if ((0 <= x) && (x < MAP_SIZE) && (0 <= y) && (y < MAP_SIZE)) {
+        if (banned.has(map[x][y])) {
+          // Current tile hit banned zone
+          break;
+        }
+      }
+    }
+    if (!banned.has(map[x][y])) {
+      // If the for loop exited without hitting a banned zone,
+      // then we found a valid (startX, startY)
+      break;
+    }
+  }
+  placeZone(map, startX, startY, offsets, zone);
+}
+
+WIDTH = 1000;
+HEIGHT = (MAP_SIZE + 1) * TILE_SIZE;
 
 let city, map;
 
@@ -240,10 +354,10 @@ function reset () {
   city.size = rollDie();
   city.rank = CITY_TABLE[city.size][0];
   if (city.rank < 3) {
-    city.raceCount = rollDie() + 1 + CITY_TABLE[city.size][2];
+    city.raceCount = rollDie() + 1 + CITY_TABLE[city.size][1];
   }
   else {
-    city.raceCount = rollDie() + 1 + rollDie() + 1 + CITY_TABLE[city.size][2];
+    city.raceCount = rollDie() + 1 + rollDie() + 1 + CITY_TABLE[city.size][1];
   }
   // The resulting number of races may be less than raceCount
   // The rules do not say what to do when the same value keeps repeating
@@ -265,40 +379,39 @@ function reset () {
   city.environment = rollDie();
   if (city.environment === 0) {
     // Mountains
-    let label = 'Mountain';
     switch (rollDie()) {
       case 0:
         // A single mountain range across the northern side of the grid. 1 tile wide.
         for (let i = 0; i < MAP_SIZE; i++) {
-          map[i][0] = label;
+          map[i][0] = MOUNTAIN_LABEL;
         }
         break;
       case 1:
         // A single mountain range across the eastern side of the grid. 1 tile wide.
-        map[MAP_SIZE-1].fill(label);
+        map[MAP_SIZE-1].fill(MOUNTAIN_LABEL);
         break;
       case 2:
         // A single mountain range across the southern side of the grid. 1 tile wide.
         for (let i = 0; i < MAP_SIZE; i++) {
-          map[i][MAP_SIZE-1] = label;
+          map[i][MAP_SIZE-1] = MOUNTAIN_LABEL;
         }
         break;
       case 3:
         // A single mountain range across the western side of the grid. 1 tile wide.
-        map[0].fill(label);
+        map[0].fill(MOUNTAIN_LABEL);
         break;
       case 4:
         // One range to the east, one to the west. Each 1 tile wide.
-        map[0].fill(label);
-        map[MAP_SIZE-1].fill(label);
+        map[0].fill(MOUNTAIN_LABEL);
+        map[MAP_SIZE-1].fill(MOUNTAIN_LABEL);
         break;
       default:
         // The city is enclosed in mountains. Surround it across all 4 sides of the grid.
-        map[0].fill(label);
-        map[MAP_SIZE-1].fill(label);
+        map[0].fill(MOUNTAIN_LABEL);
+        map[MAP_SIZE-1].fill(MOUNTAIN_LABEL);
         for (let i = 0; i < MAP_SIZE; i++) {
-          map[i][0] = label;
-          map[i][MAP_SIZE-1] = label;
+          map[i][0] = MOUNTAIN_LABEL;
+          map[i][MAP_SIZE-1] = MOUNTAIN_LABEL;
         }
         break;
     }
@@ -313,68 +426,30 @@ function reset () {
   }
   else if (city.environment === 4) {
     // Mountains (east and west) and River (north to south)
-    map[0].fill('Mountain');
-    map[MAP_SIZE-1].fill('Mountain');
+    map[0].fill(MOUNTAIN_LABEL);
+    map[MAP_SIZE-1].fill(MOUNTAIN_LABEL);
     drawRiver(map, false);
   }
   else if (city.environment === 5) {
     // Lake
-    let top = 4 + rollDie(),
-        label = 'Lake';
     switch (rollDie()) {
       case 0:
-        map[0][0] = label;
-        map[1][0] = label;
-        map[2][0] = label;
-        map[0][1] = label;
-        map[0][2] = label;
-        map[1][1] = label;
+        placeZone(map, 0, 0, [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [2, 0]], LAKE_LABEL);
         break;
       case 1:
-        map[0][MAP_SIZE-1] = label;
-        map[1][MAP_SIZE-1] = label;
-        map[2][MAP_SIZE-1] = label;
-        map[0][MAP_SIZE-2] = label;
-        map[0][MAP_SIZE-3] = label;
-        map[1][MAP_SIZE-2] = label;
+        placeZone(map, 0, MAP_SIZE - 3, [[0, 0], [0, 1], [0, 2], [1, 1], [1, 2], [2, 2]], LAKE_LABEL);
         break;
       case 2:
-        map[0][top] = label;
-        map[0][top+1] = label;
-        map[0][top+2] = label;
-        map[0][top+3] = label;
-        map[0][top+4] = label;
-        map[1][top+1] = label;
-        map[1][top+2] = label;
-        map[1][top+3] = label;
-        map[2][top+2] = label;
+        placeZone(map, 0, 4 + rollDie(), [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4], [1, 1], [1, 2], [1, 3], [2, 2]], LAKE_LABEL);
         break;
       case 3:
-        map[MAP_SIZE-3][0] = label;
-        map[MAP_SIZE-2][0] = label;
-        map[MAP_SIZE-1][0] = label;
-        map[MAP_SIZE-2][1] = label;
-        map[MAP_SIZE-1][1] = label;
-        map[MAP_SIZE-1][2] = label;
+        placeZone(map, MAP_SIZE - 3, 0, [[0, 0], [1, 0], [1, 1], [2, 0], [2, 1], [2, 2]], LAKE_LABEL);
         break;
       case 4:
-        map[MAP_SIZE-3][MAP_SIZE-1] = label;
-        map[MAP_SIZE-2][MAP_SIZE-1] = label;
-        map[MAP_SIZE-1][MAP_SIZE-1] = label;
-        map[MAP_SIZE-2][MAP_SIZE-2] = label;
-        map[MAP_SIZE-1][MAP_SIZE-3] = label;
-        map[MAP_SIZE-1][MAP_SIZE-2] = label;
+        placeZone(map, MAP_SIZE - 3, MAP_SIZE - 3, [[0, 2], [1, 1], [1, 2], [2, 0], [2, 1], [2, 2]], LAKE_LABEL);
         break;
       default:
-        map[MAP_SIZE-1][top] = label;
-        map[MAP_SIZE-1][top+1] = label;
-        map[MAP_SIZE-1][top+2] = label;
-        map[MAP_SIZE-1][top+3] = label;
-        map[MAP_SIZE-1][top+4] = label;
-        map[MAP_SIZE-2][top+1] = label;
-        map[MAP_SIZE-2][top+2] = label;
-        map[MAP_SIZE-2][top+3] = label;
-        map[MAP_SIZE-3][top+2] = label;
+        placeZone(map, MAP_SIZE - 3, 4 + rollDie(), [[0, 2], [1, 1], [1, 2], [1, 3], [2, 0], [2, 1], [2, 2], [2, 3], [2, 4]], LAKE_LABEL);
         break;
     }
   }
@@ -387,8 +462,7 @@ function reset () {
     city.core = 'Monastery';
   }
   let x = 7,
-      y = 7,
-      label = 'Core';
+      y = 7;
   // Randomly shift the Core slightly from the center of the map
   if (rollDie() < 2) {
     if (rollDie() < 3) {
@@ -408,159 +482,140 @@ function reset () {
   }
   switch (rollDie()) {
     case 0:
-      map[x][y] = label;
-      map[x+1][y] = label;
-      map[x][y+1] = label;
-      map[x][y+2] = label;
-      map[x+1][y+2] = label;
+      placeZone(map, x, y, [[0, 0], [0, 1], [0, 2], [1, 0], [1, 2]], CORE_LABEL);
       break;
     case 1:
-      map[x][y] = label;
-      map[x+1][y] = label;
-      map[x][y+1] = label;
-      map[x+1][y+1] = label;
+      placeZone(map, x, y, [[0, 0], [0, 1], [1, 0], [1, 1]], CORE_LABEL);
       break;
     case 2:
-      map[x+1][y] = label;
-      map[x][y+1] = label;
-      map[x+1][y+1] = label;
-      map[x+2][y+1] = label;
-      map[x+1][y+2] = label;
+      placeZone(map, x, y, [[0, 1], [1, 0], [1, 1], [1, 2], [2, 1]], CORE_LABEL);
       break;
     case 3:
-      map[x][y] = label;
-      map[x+1][y] = label;
-      map[x+1][y+1] = label;
-      map[x][y+2] = label;
-      map[x+1][y+2] = label;
+      placeZone(map, x, y, [[0, 0], [0, 2], [1, 0], [1, 1], [1, 2]], CORE_LABEL);
       break;
     case 4:
-      map[x+2][y] = label;
-      map[x][y+1] = label;
-      map[x+1][y+1] = label;
-      map[x+2][y+1] = label;
-      map[x][y+2] = label;
+      placeZone(map, x, y, [[0, 1], [0, 2], [1, 1], [2, 0], [2, 1]], CORE_LABEL);
       break;
     default:
-      map[x][y] = label;
-      map[x+2][y] = label;
-      map[x][y+1] = label;
-      map[x+1][y+1] = label;
-      map[x+2][y+1] = label;
-      map[x+1][y+2] = label;
-      map[x+2][y+2] = label;
+      placeZone(map, x, y, [[0, 0], [0, 1], [1, 1], [1, 2], [2, 0], [2, 1], [2, 2]], CORE_LABEL);
       break;
   }
 
   // 4. UPPER CLASS DISTRICT
-  let citySet = new Set([label]);
-  label = 'Upper';
+  let citySet = new Set();
+  citySet.add(CORE_LABEL);
   switch (rollDie()) {
     case 0:
       if (city.rank === 3) {
-        attachZone(map, citySet, [[0, -1], [0, -2]], label);
+        attachZone(map, citySet, [[0, -1], [0, -2]], UPPER_LABEL);
       }
       else {
-        attachZone(map, citySet, [[0, -1]], label);
+        attachZone(map, citySet, [[0, -1]], UPPER_LABEL);
       }
       break;
     case 1:
       if (city.rank === 3) {
-        attachZone(map, citySet, [[0, 1], [0, 2]], label);
+        attachZone(map, citySet, [[0, 1], [0, 2]], UPPER_LABEL);
       }
       else {
-        attachZone(map, citySet, [[0, 1]], label);
+        attachZone(map, citySet, [[0, 1]], UPPER_LABEL);
       }
       break;
     case 2:
       if (city.rank === 3) {
-        attachZone(map, citySet, [[1, 0], [2, 0]], label);
+        attachZone(map, citySet, [[1, 0], [2, 0]], UPPER_LABEL);
       }
       else {
-        attachZone(map, citySet, [[1, 0]], label);
+        attachZone(map, citySet, [[1, 0]], UPPER_LABEL);
       }
       break;
     case 3:
       if (city.rank === 3) {
-        attachZone(map, citySet, [[-1, 0], [-2, 0]], label);
+        attachZone(map, citySet, [[-1, 0], [-2, 0]], UPPER_LABEL);
       }
       else {
-        attachZone(map, citySet, [[-1, 0]], label);
+        attachZone(map, citySet, [[-1, 0]], UPPER_LABEL);
       }
       break;
     case 4:
       if (city.rank === 3) {
-        attachZone(map, citySet, [[-1, 0], [-2, 0], [1, 0], [2, 0]], label);
+        attachZone(map, citySet, [[-1, 0], [-2, 0], [1, 0], [2, 0]], UPPER_LABEL);
       }
       else {
-        attachZone(map, citySet, [[-1, 0], [1, 0]], label);
+        attachZone(map, citySet, [[-1, 0], [1, 0]], UPPER_LABEL);
       }
       break;
     default:
-      attachZone(map, citySet, [[0, -1], [0, 1], [1, 0], [-1, 0]], label);
+      attachZone(map, citySet, [[0, -1], [0, 1], [1, 0], [-1, 0]], UPPER_LABEL);
       break;
   }
 
   // 5. THE MASSES
-  citySet.add(label);
-  attachZone(map, citySet, POPULAR_TABLE[rollDie()][city.rank-1], 'Popular');
+  citySet.add(UPPER_LABEL);
+  attachZone(map, citySet, POPULAR_TABLE[rollDie()][city.rank-1], POPULAR_LABEL);
 
   // 6. FIELDS
-  citySet.add('Popular');
-  label = 'Field';
+  citySet.add(POPULAR_LABEL);
   let roll_count = Math.max(1, city.rank - 1);
   for (let i = 0; i < roll_count; i++) {
     switch (rollDie()) {
       case 0:
-        attachZone(map, citySet, [[-1, -1]], label);
+        attachZone(map, citySet, [[-1, -1]], FIELD_LABEL);
         break;
       case 1:
-        attachZone(map, citySet, [[1, -1]], label);
+        attachZone(map, citySet, [[1, -1]], FIELD_LABEL);
         break;
       case 2:
-        attachZone(map, citySet, [[1, 1]], label);
+        attachZone(map, citySet, [[1, 1]], FIELD_LABEL);
         break;
       case 3:
-        attachZone(map, citySet, [[-1, 1]], label);
+        attachZone(map, citySet, [[-1, 1]], FIELD_LABEL);
         break;
       case 4:
         if (rollDie() < 3) {
           // Region 1 and 2
-          attachZone(map, citySet, [[-1, -1]], label);
-          attachZone(map, citySet, [[1, -1]], label);
+          attachZone(map, citySet, [[-1, -1]], FIELD_LABEL);
+          attachZone(map, citySet, [[1, -1]], FIELD_LABEL);
         }
         else {
           // Region 3 and 4
-          attachZone(map, citySet, [[1, 1]], label);
-          attachZone(map, citySet, [[-1, 1]], label);
+          attachZone(map, citySet, [[1, 1]], FIELD_LABEL);
+          attachZone(map, citySet, [[-1, 1]], FIELD_LABEL);
         }
         break;
       default:
         // A field completely encircles the city
-        attachZone(map, citySet, [[0, -1], [0, 1], [1, 0], [-1, 0]], label);
+        attachZone(map, citySet, [[0, -1], [0, 1], [1, 0], [-1, 0]], FIELD_LABEL);
         break;
     }
   }
 
   // 7. SPECIAL DISTRICT 1
-  citySet.add(label);
-  label = 'Special District 1';
+  citySet.add(FIELD_LABEL);
   if (city.rank > 1) {
     // Special districts are only added to cities of size rank 2 and 3.
-    if (rollDie() < 3) {
+    let roll = rollDie();
+    city.special_district_1 = [
+      'Merchants & Artisans',
+      'Holy District',
+      'Guild District',
+      'Magical Town',
+      'Manufactories',
+      'Military Facilities'][roll];
+    if ((roll === 0) || (roll === 4) || (roll === 5)) {
       // Creation method 1: Add a zone with a depth of 1 tile.
       switch (rollDie(4)) {
         case 0:
-          attachZone(map, citySet, [[-1, -1]], label);
+          attachZone(map, citySet, [[-1, -1]], SD1_LABEL);
           break;
         case 1:
-          attachZone(map, citySet, [[1, -1]], label);
+          attachZone(map, citySet, [[1, -1]], SD1_LABEL);
           break;
         case 2:
-          attachZone(map, citySet, [[1, 1]], label);
+          attachZone(map, citySet, [[1, 1]], SD1_LABEL);
           break;
         default:
-          attachZone(map, citySet, [[-1, 1]], label);
+          attachZone(map, citySet, [[-1, 1]], SD1_LABEL);
           break;
       }
     }
@@ -571,7 +626,7 @@ function reset () {
       for (let x = startX; x < (startX + 2); x++) {
         for (let y = startY; y < (startY + 2); y++) {
           if (map[x][y] !== 'Core') {
-            map[x][y] = label;
+            map[x][y] = SD1_LABEL;
           }
         }
       }
@@ -579,62 +634,94 @@ function reset () {
   }
 
   // 8. SPECIAL DISTRICT 2
-  citySet.add(label);
-  label = 'Special District 2';
   if (city.rank > 2) {
     // A last district that is only applicable to size rank 3 cities.
-    x = rollDie() + rollDie();
-    y = rollDie() + rollDie();
     switch (rollDie()) {
       case 0:
-        map[x][y] = label;
-        map[x+1][y] = label;
-        map[x+2][y] = label;
-        map[x][y+1] = label;
-        map[x+2][y+1] = label;
+        // Learning, Libraries, and Sages district
+        // Outside main city. 4 tiles arranged freely.
+        city.special_district_2 = 'Learning, Libraries, and Sages';
+        citySet.add(SD1_LABEL);
+        citySet.add(SD2_LABEL);
+        randomlyPlace(map, citySet, [[0, 0]], SD2_LABEL);
+        randomlyPlace(map, citySet, [[0, 0]], SD2_LABEL);
+        randomlyPlace(map, citySet, [[0, 0]], SD2_LABEL);
+        randomlyPlace(map, citySet, [[0, 0]], SD2_LABEL);
         break;
       case 1:
-        map[x][y] = label;
-        map[x+2][y] = label;
-        map[x][y+1] = label;
-        map[x+1][y+1] = label;
-        map[x+2][y+1] = label;
+        // Old Town
+        // Doesn't overwrite Core and Special District 1
+        city.special_district_2 = 'Old Town';
+        randomlyPlace(map, new Set([CORE_LABEL, SD1_LABEL]), [[0, 0], [0, 1], [1, 0], [1, 1]], SD2_LABEL);
         break;
       case 2:
-        map[x][y] = label;
-        map[x+1][y] = label;
-        map[x+2][y] = label;
-        map[x+1][y+1] = label;
-        map[x][y+2] = label;
-        map[x+1][y+2] = label;
-        map[x+2][y+2] = label;
+        // Ghetto
+        // Doesn't overwrite Core and Special District 1
+        city.special_district_2 = 'Ghetto';
+        randomlyPlace(map, new Set([CORE_LABEL, SD1_LABEL]), [[0, 0], [0, 1], [1, 0], [1, 1]], SD2_LABEL);
         break;
       case 3:
-        map[x][y] = label;
-        map[x+1][y] = label;
-        map[x+2][y] = label;
-        map[x][y+1] = label;
-        map[x+1][y+1] = label;
+        // Great Palace
+        city.special_district_2 = 'Great Palace';
+        citySet.add(SD1_LABEL);
+        randomlyPlace(map, citySet, PALACE_TABLE[rollDie()], SD2_LABEL);
         break;
       case 4:
-        map[x][y] = label;
-        map[x+1][y] = label;
-        map[x][y+1] = label;
-        map[x+1][y+1] = label;
+        // Red Light
+        // Doesn't overwrite Core, Upper, and Special District 1
+        city.special_district_2 = 'Red Light';
+        let offsets = [[0, 0]];
+        if (rollDie() < 3) {
+          offsets.push([0, 1]);
+        }
+        else {
+          offsets.push([1, 0]);
+        }
+        randomlyPlace(map, new Set([CORE_LABEL, UPPER_LABEL, SD1_LABEL]), offsets, SD2_LABEL);
         break;
       default:
-        map[x][y] = label;
-        map[x+1][y] = label;
-        map[x+1][y+1] = label;
-        map[x+2][y+1] = label;
-        map[x][y+2] = label;
-        map[x+1][y+2] = label;
+        // Fortifications Zone
+        // 1 tile deep zone around city, separated by wall.
+        city.special_district_2 = 'Fortifications Zone';
+        citySet.add(SD1_LABEL);
+        attachZone(map, citySet, [[0, -1], [0, 1], [1, 0], [-1, 0]], SD2_LABEL);
         break;
     }
   }
 
   // 9. WALLS AND GATES
   city.gate = GATE_TABLE[rollDie()];
+
+  // 10. ADDING DETAIL
+  let countrySet = new Set([BLANK, FIELD_LABEL]),
+      waterSet = new Set([LAKE_LABEL, RIVER_LABEL]),
+      mountainSet = new Set([MOUNTAIN_LABEL]),
+      roll, detail;
+  city.details = [];
+  while (city.details.length < CITY_TABLE[city.size][3]) {
+    x = rollDie(MAP_SIZE);
+    y = rollDie(MAP_SIZE);
+    if (city.details.findIndex((element) => ((element[0] === x) && (element[1] === y))) >= 0) {
+      // Current tile already has a detail
+      continue;
+    }
+
+    roll = rollDie();
+    if (countrySet.has(map[x][y])) {
+      detail = ['Dungeon Entrance', 'Ruins', 'Monastery', 'Estate', 'Windmills', 'Jousting Grounds'][roll];
+    }
+    else if (waterSet.has(map[x][y])) {
+      detail = ['Island Fortress', 'Sunken Ship', 'Silent Waters', 'Pleasure Barge', 'Fishing Area', 'Island'][roll];
+    }
+    else if (mountainSet.has(map[x][y])) {
+      detail = ['Fortress', 'Ruins', 'Shrine', 'Hideout', 'Mines Entrance', 'Forest'][roll];
+    }
+    else {
+      // (x, y) is in the city
+      detail = ['Tower', 'Inn', 'Monastery', 'Guild House', 'Marketplace', 'Square'][roll];
+    }
+    city.details.push([x, y, detail]);
+  }
 
   console.dir(city);
 }
@@ -646,31 +733,54 @@ function draw() {
   for (let x = 0; x < MAP_SIZE; x++) {
     for (let y = 0; y < MAP_SIZE; y++) {
       if (COLOR_TABLE.has(map[x][y])) {
-        screen.draw.filled_rect(new Rect(x * GRID_SIZE, y * GRID_SIZE, GRID_SIZE, GRID_SIZE), COLOR_TABLE.get(map[x][y]));
+        screen.draw.filled_rect(new Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE), COLOR_TABLE.get(map[x][y]));
       }
-      screen.draw.rect(new Rect(x * GRID_SIZE, y * GRID_SIZE, GRID_SIZE, GRID_SIZE), 'black', 1);
+      screen.draw.rect(new Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE), 'black', 1);
     }
+  }
+
+  // Draw the Details labels
+  let i = 1;
+  for (let [x, y, detail] of city.details) {
+    screen.draw.text(i.toFixed(0), {
+      center: [(x * TILE_SIZE) + (TILE_SIZE / 2), (y * TILE_SIZE) + (TILE_SIZE / 2)],
+      color: 'black',
+      fontsize: TILE_SIZE / 2
+    });
+    i++;
   }
 
   // Draw the map legend
   let keys = Array.from(COLOR_TABLE.keys()).sort(),
-      boxStart = (MAP_SIZE + 1) * GRID_SIZE,
-      textStart = (MAP_SIZE + 3) * GRID_SIZE,
-      y = GRID_SIZE * 2;
+      boxStart = (MAP_SIZE + 1) * TILE_SIZE,
+      textStart = (MAP_SIZE + 3) * TILE_SIZE,
+      y = TILE_SIZE * 2,
+      text;
   screen.draw.text('Legend:', {
     topleft: [boxStart, 0],
     color: 'black',
-    fontsize: GRID_SIZE
+    fontsize: TILE_SIZE
   });
   for (let key of keys) {
-    screen.draw.filled_rect(new Rect(boxStart, y, GRID_SIZE, GRID_SIZE), COLOR_TABLE.get(key));
-    screen.draw.rect(new Rect(boxStart, y, GRID_SIZE, GRID_SIZE), 'black', 1);
-    screen.draw.text(key, {
+    screen.draw.filled_rect(new Rect(boxStart, y, TILE_SIZE, TILE_SIZE), COLOR_TABLE.get(key));
+    screen.draw.rect(new Rect(boxStart, y, TILE_SIZE, TILE_SIZE), 'black', 1);
+
+    text = key;
+    if (key === CORE_LABEL) {
+      text += ` (${ city.core })`;
+    }
+    if ((key === SD1_LABEL) && ('special_district_1' in city)) {
+      text = city.special_district_1;
+    }
+    if ((key === SD2_LABEL) && ('special_district_2' in city)) {
+      text = city.special_district_2;
+    }
+    screen.draw.text(text, {
       topleft: [textStart, y],
       color: 'black',
-      fontsize: GRID_SIZE
+      fontsize: TILE_SIZE
     });
-    y += GRID_SIZE;
+    y += TILE_SIZE;
   }
 }
 
