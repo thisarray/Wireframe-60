@@ -380,11 +380,12 @@ function describeCity(output, city) {
 WIDTH = 1000;
 HEIGHT = (MAP_SIZE + 1) * TILE_SIZE;
 
-let city, map;
+let city, map, selected;
 
 function reset () {
   city = {};
   map = [];
+  selected = BLANK;
   for (let i = 0; i < MAP_SIZE; i++) {
     map.push((new Array(MAP_SIZE)).fill(BLANK));
   }
@@ -820,6 +821,44 @@ function draw() {
       fontsize: TILE_SIZE
     });
     y += TILE_SIZE;
+  }
+
+  // Draw the red outline for the selected tile last so it appears on top
+  y = TILE_SIZE * 2;
+  for (let key of keys) {
+    if (key === selected) {
+      screen.draw.rect(new Rect(boxStart, y, TILE_SIZE, TILE_SIZE), 'red', 3);
+      break;
+    }
+    y += TILE_SIZE;
+  }
+}
+
+function on_mouse_down(pos, buttons) {
+  if ((buttons & mouse.LEFT) <= 0) {
+    // Ignore a mouse click that is not from the left button
+    return;
+  }
+
+  let keys = Array.from(COLOR_TABLE.keys()).sort(),
+      x, y, index;
+  if ((pos[0] < (MAP_SIZE * TILE_SIZE)) && (pos[1] < (MAP_SIZE * TILE_SIZE))) {
+    // Left mouse click in the map
+    x = Math.floor(pos[0] / TILE_SIZE);
+    y = Math.floor(pos[1] / TILE_SIZE);
+    if (map[x][y] !== selected) {
+      map[x][y] = selected;
+      index = city.details.findIndex((element) => ((element[0] === x) && (element[1] === y)));
+      if (index >= 0) {
+        // If the clicked on tile has a detail, then delete it because the tile has changed
+        city.details.splice(index, 1);
+        describeCity(output, city);
+      }
+    }
+  }
+  else if (((TILE_SIZE * 2) <= pos[1]) && (pos[1] < ((keys.length + 2) * TILE_SIZE))) {
+    // Left mouse click in the legend
+    selected = keys[Math.floor(pos[1]/TILE_SIZE)-2];
   }
 }
 
