@@ -385,10 +385,10 @@ let city, map, selected;
 function reset () {
   city = {};
   map = [];
-  selected = BLANK;
   for (let i = 0; i < MAP_SIZE; i++) {
     map.push((new Array(MAP_SIZE)).fill(BLANK));
   }
+  selected = BLANK;
 
   // 1. THE SETUP
   city.size = rollDie();
@@ -596,8 +596,8 @@ function reset () {
 
   // 6. FIELDS
   citySet.add(POPULAR_LABEL);
-  let roll_count = Math.max(1, city.rank - 1);
-  for (let i = 0; i < roll_count; i++) {
+  let rollCount = Math.max(1, city.rank - 1);
+  for (let i = 0; i < rollCount; i++) {
     switch (rollDie()) {
       case 0:
         attachZone(map, citySet, [[-1, -1]], FIELD_LABEL);
@@ -661,8 +661,8 @@ function reset () {
     }
     else {
       // Creation method 2: Add a 2x2 zone that replaces all sorts of pre-existing tiles except those of the Core.
-      let startX = rollDie() + rollDie() + 2,
-          startY = rollDie() + rollDie() + 2;
+      let startX = rollDie() + 1 + rollDie() + 1 + 1,
+          startY = rollDie() + 1 + rollDie() + 1 + 1;
       for (let x = startX; x < (startX + 2); x++) {
         for (let y = startY; y < (startY + 2); y++) {
           if (map[x][y] !== 'Core') {
@@ -736,7 +736,7 @@ function reset () {
   let countrySet = new Set([BLANK, FIELD_LABEL]),
       waterSet = new Set([LAKE_LABEL, RIVER_LABEL]),
       mountainSet = new Set([MOUNTAIN_LABEL]),
-      roll, detail;
+      choices;
   city.details = [];
   while (city.details.length < CITY_TABLE[city.size][3]) {
     x = rollDie(MAP_SIZE);
@@ -746,21 +746,20 @@ function reset () {
       continue;
     }
 
-    roll = rollDie();
     if (countrySet.has(map[x][y])) {
-      detail = ['Dungeon Entrance', 'Ruins', 'Monastery', 'Estate', 'Windmills', 'Jousting Grounds'][roll];
+      choices = ['Dungeon Entrance', 'Ruins', 'Monastery', 'Estate', 'Windmills', 'Jousting Grounds'];
     }
     else if (waterSet.has(map[x][y])) {
-      detail = ['Island Fortress', 'Sunken Ship', 'Silent Waters', 'Pleasure Barge', 'Fishing Area', 'Island'][roll];
+      choices = ['Island Fortress', 'Sunken Ship', 'Silent Waters', 'Pleasure Barge', 'Fishing Area', 'Island'];
     }
     else if (mountainSet.has(map[x][y])) {
-      detail = ['Fortress', 'Ruins', 'Shrine', 'Hideout', 'Mines Entrance', 'Forest'][roll];
+      choices = ['Fortress', 'Ruins', 'Shrine', 'Hideout', 'Mines Entrance', 'Forest'];
     }
     else {
       // (x, y) is in the city
-      detail = ['Tower', 'Inn', 'Monastery', 'Guild House', 'Marketplace', 'Square'][roll];
+      choices = ['Tower', 'Inn', 'Monastery', 'Guild House', 'Marketplace', 'Square'];
     }
-    city.details.push([x, y, detail]);
+    city.details.push([x, y, choices[rollDie()]]);
   }
 
   describeCity(output, city);
