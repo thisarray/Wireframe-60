@@ -280,9 +280,9 @@ function update() {
             tim.frame = 9;
           }
         }
-      }
-      if (!Surface.isColorEqual(rgbbottom, [0, 0, 0])) {
-        tim.posy += 1;
+        if (!Surface.isColorEqual(rgbbottom, [0, 0, 0])) {
+          tim.posy += 1;
+        }
       }
     }
     if (tim.jumping === 0) {
