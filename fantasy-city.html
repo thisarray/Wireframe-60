@@ -781,7 +781,7 @@ function draw() {
   // Draw the Details labels
   let i = 1;
   for (let [x, y, detail] of city.details) {
-    screen.draw.text(i.toFixed(0), {
+    screen.draw.text(i.toFixed(), {
       center: [(x * TILE_SIZE) + (TILE_SIZE / 2), (y * TILE_SIZE) + (TILE_SIZE / 2)],
       color: 'black',
       fontsize: TILE_SIZE / 2
