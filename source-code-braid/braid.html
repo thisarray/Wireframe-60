@@ -195,8 +195,7 @@ function reset() {
   tim.xstore = 0;
   tim.jumping = 0;
 
-  screen.blit('backgroundcol', [0, 0]);
-  collisionMap = screen.getSurface();
+  collisionMap = Surface.fromImage('backgroundcol');
 
   levelx = 0;
   backx = 0;
